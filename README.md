@@ -24,6 +24,30 @@ Abre `http://127.0.0.1:8765`: cola SMILES (até 100 por rodada), devolve estrutu
 probabilidade por modelo, status do domínio de aplicabilidade e o veredito de consenso
 de cada alvo. Deep link: `#smiles=CCO|c1ccccc1` já preenche e roda.
 
+## Deploy
+
+O frontend estático está no Vercel; o Python **não** roda lá. Só as dependências somam ~295 MB no
+macOS e passam de 1 GB no Linux, contra um teto de 500 MB por função — e mais da metade disso é
+`nvidia-nccl-cu12`, que o wheel `xgboost` arrasta no Linux e que inferência em CPU nunca usa
+(por isso o `requirements.txt` usa `xgboost-cpu` fora do macOS).
+
+Duas armadilhas custaram várias builds e ficam registradas aqui:
+
+- O **Framework Preset fica gravado** nas configurações do projeto no momento da importação. Como
+  havia `requirements.txt` na raiz, o Vercel salvou um preset Python e continuou rodando o builder
+  Python mesmo depois de todo o código ir para `backend/`. O `"framework": null` no `vercel.json`
+  sobrescreve isso por implantação, sem depender do painel.
+- O **`vercel.json` rejeita a chave `"//"`** usada como comentário — o schema é estrito. O sintoma
+  não é óbvio: a build falha apontando para a documentação de project-configuration.
+
+Por isso a raiz do repositório contém apenas `static/` e `vercel.json`: sem `requirements.txt` e sem
+nenhum nome de entrypoint Python (`app.py`, `index.py`, `server.py`, `main.py`, `wsgi.py`, `asgi.py`),
+a detecção de runtime não tem como disparar.
+
+A página publicada carrega e explica os alvos, mas **não prediz** enquanto não houver uma API Python
+viva: os modelos são `.pkl`, e pickle só reconstrói os objetos com scikit-learn e xgboost carregados.
+O `Dockerfile` na raiz sobe essa API em qualquer host de container.
+
 ## Censo de modelos — conferido contra os papers
 
 | Alvo | No paper | Empacotados aqui |

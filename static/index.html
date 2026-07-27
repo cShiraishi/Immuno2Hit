@@ -79,6 +79,7 @@
   footer .team{color:var(--ink);font-size:12.5px;opacity:.75}
   @media (max-width:560px){ td,th{white-space:normal} }
 </style>
+<script src="config.js" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap">
@@ -153,6 +154,8 @@ $('tabs').addEventListener('click', e => {
   $('brief').hidden = false;
 });
 
+// empty when the API is same-origin (local); set by config.js on a static host
+const API_BASE = window.IMMUNO2HIT_API || '';
 const MAX_BATCH = 100;
 
 const lines = () => $('inp').value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -175,7 +178,7 @@ $('go').onclick = async () => {
   if (!smiles || lines().length > MAX_BATCH) return;
   $('go').disabled = true; $('status').textContent = 'computing…'; $('out').innerHTML = '';
   try {
-    const r = await fetch('/api/predict', {
+    const r = await fetch(API_BASE + '/api/predict', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({smiles})
     });

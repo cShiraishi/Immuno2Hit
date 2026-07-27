@@ -10,6 +10,7 @@ external web dependency.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import warnings
@@ -56,6 +57,7 @@ TARGETS = {
 
 MEAN_GATE = 0.60
 MAX_BATCH = 100  # compounds per run
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
 MODELS: dict[str, list[dict]] = {}
 
 
@@ -164,8 +166,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        # the frontend may be served from a different origin (e.g. Vercel) than this API
+        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.end_headers()
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
@@ -201,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    port = 8765
+    port = int(os.environ.get("PORT", 8765))
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])
     print("Immuno2Hit — loading models (the CD28 k-NN is 110 MB, takes a few seconds)...")
@@ -210,7 +221,7 @@ def main() -> None:
     print(f"\nReady: {url}\nCtrl+C to stop.\n")
     threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
-        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+        ThreadingHTTPServer((os.environ.get("HOST", "127.0.0.1"), port), Handler).serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
 

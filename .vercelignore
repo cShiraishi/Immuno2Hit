@@ -1,0 +1,13 @@
+# Vercel serves ONLY the static frontend. The Python API runs in a container (Dockerfile).
+#
+# Without this file Vercel finds requirements.txt and app.py — app.py is one of the
+# filenames it treats as a Python entrypoint — builds a serverless function, and the
+# installed dependencies reach ~1 GB against a 500 MB bundle limit. Hiding the Python
+# side from the build is what keeps this a static deployment.
+*.py
+requirements.txt
+Dockerfile
+models/
+*.command
+README.md
+.gitignore

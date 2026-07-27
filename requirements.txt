@@ -1,5 +1,11 @@
 numpy>=1.26
 pandas>=2.0
 scikit-learn==1.6.1
-xgboost>=3.0
 rdkit>=2024.3
+
+# On Linux the plain `xgboost` wheel declares nvidia-nccl-cu12 (303 MB of GPU collective
+# libraries) and ships a 99 MB binary — useless for CPU inference, and the single reason a
+# Vercel build reached 1014 MB. xgboost-cpu is the same code without CUDA: 5.7 MB, and it
+# depends only on numpy and scipy. macOS never had the problem, so it keeps the normal wheel.
+xgboost-cpu>=3.0; platform_system == "Linux"
+xgboost>=3.0; platform_system != "Linux"

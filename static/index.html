@@ -165,13 +165,22 @@ function refreshCount(){
   const over = n > MAX_BATCH;
   $('count').textContent = n ? `${n}/${MAX_BATCH} compounds` : '';
   $('count').style.color = over ? '#a33' : '';
-  $('go').disabled = over;
+  $('go').disabled = over || !API_READY;
   if (over) $('status').textContent = `remove ${n - MAX_BATCH} to fit the limit`;
   else if ($('status').textContent.startsWith('remove')) $('status').textContent = '';
 }
 $('inp').addEventListener('input', refreshCount);
 
 $('demo').onclick = () => { $('inp').value = EXAMPLES.join('\n'); refreshCount(); };
+
+// A static host without an API container configured would fail on every click with a
+// cryptic 404. Say so up front instead.
+const API_READY = API_BASE || ['localhost','127.0.0.1'].includes(location.hostname);
+if (!API_READY) {
+  $('go').disabled = true;
+  $('status').textContent = 'prediction API not configured — set window.IMMUNO2HIT_API in config.js';
+  $('status').style.color = '#a33';
+}
 
 $('go').onclick = async () => {
   const smiles = $('inp').value.trim();

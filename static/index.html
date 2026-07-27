@@ -81,6 +81,7 @@
   @media (max-width:560px){ td,th{white-space:normal} }
 </style>
 <script src="config.js" onerror="void 0"></script>
+<script src="vendor/RDKit_minimal.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -182,7 +183,7 @@ $('demo').onclick = () => { $('inp').value = EXAMPLES.join('\n'); refreshCount()
 let API_READY = false;
 $('go').disabled = true;
 $('status').textContent = 'checking prediction API…';
-fetch(API_BASE + '/api/health')
+const apiReady = fetch(API_BASE + '/api/health')
   .then(r => { if (!r.ok) throw new Error('unavailable'); return r.json(); })
   .then(() => { API_READY = true; $('status').textContent = ''; refreshCount(); })
   .catch(() => {
@@ -190,19 +191,61 @@ fetch(API_BASE + '/api/health')
     $('status').style.color = '#a33';
   });
 
+// RDKit.js computes the fingerprints and the depiction here, so the API needs neither
+// RDKit nor SMILES parsing — that is what keeps the serverless bundle under its limit.
+let RDKit = null;
+const rdkitReady = window.initRDKitModule
+  ? window.initRDKitModule({ locateFile: () => 'vendor/RDKit_minimal.wasm' })
+      .then(m => { RDKit = m; })
+      .catch(() => { RDKit = null; })
+  : Promise.resolve();
+
+const FPS = [['Morgan', JSON.stringify({radius: 2, nBits: 1024})],
+             ['MACCS', null],
+             ['RDKit', JSON.stringify({maxPath: 7, nBits: 1024})]];
+
+function featurize(smiles){
+  let mol = null;
+  try { mol = RDKit.get_mol(smiles); } catch (e) { return null; }
+  if (!mol) return null;
+  try {
+    const fps = {};
+    fps.Morgan = mol.get_morgan_fp(FPS[0][1]);
+    fps.MACCS  = mol.get_maccs_fp();
+    fps.RDKit  = mol.get_rdkit_fp(FPS[2][1]);
+    let svg = mol.get_svg(260, 190);
+    if (svg && svg.indexOf('<svg') > 0) svg = svg.slice(svg.indexOf('<svg'));
+    return { smiles, fps, svg };
+  } catch (e) { return null; }
+  finally { mol.delete(); }
+}
+
 $('go').onclick = async () => {
   const smiles = $('inp').value.trim();
   if (!smiles || lines().length > MAX_BATCH) return;
   $('go').disabled = true; $('status').textContent = 'computing…'; $('out').innerHTML = '';
   try {
+    await rdkitReady;
+    if (!RDKit) throw new Error('RDKit.js failed to load');
+    const parsed = lines().map(featurize);
+    const payload = parsed.filter(Boolean).map(({smiles, fps}) => ({smiles, fps}));
     const r = await fetch(API_BASE + '/api/predict', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({smiles})
+      body: JSON.stringify({compounds: payload})
     });
     const data = await r.json();
     if (data.error) throw new Error(data.error);
-    render(data.results);
-    $('status').textContent = `${data.results.length} compound(s)`;
+    // stitch each result back to the structure drawn in the browser, and re-insert
+    // the SMILES RDKit could not parse so they are reported rather than dropped
+    const byS = new Map(data.results.map(x => [x.smiles, x]));
+    const merged = lines().map((smi, i) => {
+      const local = parsed[i];
+      if (!local) return { smiles: smi, valid: false, svg: null, targets: {} };
+      const res = byS.get(smi) || { smiles: smi, valid: false, targets: {} };
+      return { ...res, svg: local.svg };
+    });
+    render(merged);
+    $('status').textContent = `${merged.length} compound(s)`;
   } catch (e) {
     $('out').innerHTML = `<p class="err">Failed: ${e.message}</p>`;
     $('status').textContent = '';
@@ -236,7 +279,7 @@ function tgt(name, v){
   const hasCut = v.members.some(m => m.threshold !== null);
   const hasAD  = v.members.some(m => m.inside_ad !== null);
   const head = ['<th>Model</th>', '<th class="num">P(active)</th>']
-    .concat(hasCut ? ['<th class="num">Cut-off</th>'] : [])
+    .concat(hasCut ? ['<th class="num">Cut</th>'] : [])
     .concat(hasAD  ? ['<th class="num">AD</th>'] : []).join('');
   const widths = `<col style="width:${hasCut && hasAD ? 44 : 58}%"><col>` +
                  (hasCut ? '<col style="width:19%">' : '') +
@@ -263,12 +306,15 @@ function tgt(name, v){
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // deep link: #smiles=CCO|c1ccccc1 prefills and runs, so a prediction can be shared as a URL
-(function fromHash(){
+(async function fromHash(){
   const m = /[#&]smiles=([^&]+)/.exec(location.hash);
   if (!m) return;
   $('inp').value = decodeURIComponent(m[1]).split('|').join('\n');
   refreshCount();
-  $('go').click();
+  // the button starts disabled until the health probe and the RDKit.js wasm are ready;
+  // clicking it before that silently does nothing
+  await Promise.all([apiReady, rdkitReady]);
+  if (!$('go').disabled) $('go').click();
 })();
 </script>
 </body>

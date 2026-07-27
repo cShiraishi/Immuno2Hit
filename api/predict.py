@@ -1,9 +1,11 @@
 """Vercel Function: POST /api/predict
 
-Runs the same scoring core as the local server. Vercel maps api/<name>.py to /api/<name>
-and loads the top-level `handler`. Models are read from backend/models at cold start,
-which measured 1.17 s locally — the whole point of dropping pandas and swapping the
-xgboost wheel for xgboost-cpu was to keep this bundle under the 500 MB function limit.
+Takes fingerprints, not SMILES. The browser computes them with RDKit.js, which is
+bit-for-bit identical to RDKit Python for the three fingerprints these models use, so
+this bundle needs no RDKit — 148 MB of the 500 MB function limit saved.
+
+Body: {"compounds": [{"smiles": "...", "fps": {"Morgan": "0101...", "MACCS": "...",
+                                               "RDKit": "..."}}, ...]}
 """
 from __future__ import annotations
 
@@ -14,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from core import MAX_BATCH, boot, predict  # noqa: E402
+from core import MAX_BATCH, boot, predict_fps  # noqa: E402
 
 boot()  # once per cold start, not per request
 
@@ -32,12 +34,11 @@ class handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length", 0))
             req = json.loads(self.rfile.read(n) or b"{}")
-            raw = req.get("smiles", "")
-            items = [s for s in (raw if isinstance(raw, list) else raw.splitlines()) if s.strip()]
-            if len(items) > MAX_BATCH:
+            compounds = req.get("compounds") or []
+            if len(compounds) > MAX_BATCH:
                 self._send(413, {"error": f"limit of {MAX_BATCH} compounds per run — "
-                                          f"{len(items)} were submitted"})
+                                          f"{len(compounds)} were submitted"})
                 return
-            self._send(200, {"results": predict(items), "max_batch": MAX_BATCH})
+            self._send(200, {"results": predict_fps(compounds), "max_batch": MAX_BATCH})
         except Exception as exc:
             self._send(500, {"error": str(exc)})

@@ -1,11 +1,11 @@
-# Dependencies for the Vercel Functions in api/. Kept minimal on purpose: the bundle
-# limit is 500 MB and these come to ~367 MB installed on Linux.
+# Dependencies for the Vercel Functions in api/. ~251 MB installed on Linux, against a
+# 500 MB function limit — and Vercel also bundles the .pyc it compiles, so headroom matters.
 #
-# No pandas here (39.8 MB) — only backend/predict.py, the offline CLI, needs DataFrames.
-# xgboost-cpu instead of xgboost: the normal Linux wheel declares nvidia-nccl-cu12,
-# 303 MB of GPU libraries that CPU inference never touches.
+# No RDKit (148 MB): the browser computes fingerprints with RDKit.js, verified bit-for-bit
+# identical to RDKit Python. No pandas (39.8 MB): only the offline CLI needs DataFrames.
+# xgboost-cpu rather than xgboost: the Linux wheel drags in nvidia-nccl-cu12, 303 MB of
+# GPU libraries that CPU inference never touches.
 numpy>=1.26
 scikit-learn==1.6.1
-rdkit>=2024.3
 xgboost-cpu>=3.0; platform_system == "Linux"
 xgboost>=3.0; platform_system != "Linux"

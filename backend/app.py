@@ -25,7 +25,10 @@ sys.path.insert(0, str(HERE))
 # the frontend sits at the repository root, where Vercel publishes it
 STATIC = HERE / "static" if (HERE / "static").is_dir() else HERE.parent / "static"
 
-from core import ALLOWED_ORIGIN, MAX_BATCH, MODELS, TARGETS, boot, predict  # noqa: E402
+# an explicit allow-list rather than serving whatever path the request asks for
+ALLOWED_STATIC = {"config.js", "vendor/RDKit_minimal.js", "vendor/RDKit_minimal.wasm"}
+
+from core import ALLOWED_ORIGIN, MAX_BATCH, MODELS, TARGETS, boot, predict_fps  # noqa: E402
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # keep the console readable
@@ -50,6 +53,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in ("/", "/index.html"):
             self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+        elif self.path.lstrip("/") in ALLOWED_STATIC:
+            name = self.path.lstrip("/")
+            ctype = {"js": "application/javascript", "wasm": "application/wasm"}.get(
+                name.rsplit(".", 1)[-1], "application/octet-stream")
+            self._send(200, (STATIC / name).read_bytes(), ctype)
         elif self.path == "/api/health":
             # the frontend probes this to decide whether scoring is available
             self._send(200, json.dumps({"ok": True, "service": "immuno2hit"}).encode(),
@@ -69,16 +77,14 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         try:
             req = json.loads(self.rfile.read(n) or b"{}")
-            raw = req.get("smiles", "")
-            items = raw if isinstance(raw, list) else raw.splitlines()
-            items = [s for s in items if s.strip()]
+            items = req.get("compounds") or []
             if len(items) > MAX_BATCH:
                 # refuse rather than silently scoring the first 100 and reporting success
                 self._send(413, json.dumps({
                     "error": f"limit of {MAX_BATCH} compounds per run — {len(items)} were submitted"
                 }).encode(), "application/json")
                 return
-            body = json.dumps({"results": predict(items), "max_batch": MAX_BATCH}).encode()
+            body = json.dumps({"results": predict_fps(items), "max_batch": MAX_BATCH}).encode()
             self._send(200, body, "application/json")
         except Exception as exc:  # surface the reason instead of a blank page
             self._send(500, json.dumps({"error": str(exc)}).encode(), "application/json")

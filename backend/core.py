@@ -173,3 +173,71 @@ def predict(smiles_list: list[str]) -> list[dict]:
     return out
 
 
+
+
+# ── fingerprint-driven path (web API) ───────────────────────────────────────
+# The browser sends bit strings computed by RDKit.js, so nothing here imports RDKit.
+
+def score_target_fps(target: str, fps: dict) -> dict:
+    """Score one compound from {fingerprint_name: bitstring}."""
+    from fps_core import bits_to_array, expected_length
+
+    cfg = TARGETS[target]
+    members, probs, votes, inside_all = [], [], [], True
+
+    for payload in MODELS[target]:
+        X = bits_to_array(fps.get(payload["fp"], ""), expected_length(payload))
+        if X is None:
+            return {"valid": False}
+        X = X.reshape(1, -1)
+        prob = float(payload["model"].predict_proba(X)[0, 1])
+        probs.append(prob)
+
+        cut = payload.get("decision_threshold")
+        vote = None
+        if cut is not None:
+            vote = prob >= cut
+            votes.append(vote)
+
+        ad = payload.get("ad")
+        inside = dist = None
+        if ad:
+            ok, d = _ad_predict(ad, X)
+            inside, dist = bool(ok[0]), float(d[0])
+            inside_all = inside_all and inside
+
+        members.append({"key": payload["model_key"], "prob": prob, "threshold": cut,
+                        "vote": vote, "inside_ad": inside, "ad_distance": dist})
+
+    mean = float(np.mean(probs))
+    if cfg["rule"] == "majority":
+        active = sum(bool(v) for v in votes) > len(votes) / 2
+        detail = f"{sum(bool(v) for v in votes)}/{len(votes)} members positive"
+    else:
+        active = mean >= MEAN_GATE and inside_all
+        detail = f"mean {mean:.3f} (cut-off {MEAN_GATE:.2f})"
+        if not inside_all:
+            detail += " · outside the applicability domain"
+
+    return {"valid": True, "members": members, "prob_mean": mean, "active": bool(active),
+            "detail": detail, "inside_ad": inside_all, "rule_label": cfg["rule_label"],
+            "note": cfg["note"], "base_rate": cfg["base_rate"], "original": cfg["original"]}
+
+
+def predict_fps(compounds: list[dict]) -> list[dict]:
+    """compounds: [{"smiles": str, "fps": {"Morgan": "0101...", ...}}, ...]"""
+    out = []
+    for c in compounds:
+        smi = (c.get("smiles") or "").strip()
+        fps = c.get("fps") or {}
+        row = {"smiles": smi, "valid": bool(fps), "targets": {}}
+        if row["valid"]:
+            for target in TARGETS:
+                r = score_target_fps(target, fps)
+                if not r.get("valid"):
+                    row["valid"] = False
+                    row["targets"] = {}
+                    break
+                row["targets"][target] = r
+        out.append(row)
+    return out

@@ -1,11 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "//": "framework:null forces the 'Other' preset on every deployment. The project was imported while requirements.txt sat at the repo root, so Vercel saved a Python preset in project settings and kept running the Python builder even after the file moved into backend/. This overrides that per deployment, without dashboard access.",
+  "framework": null,
+  "buildCommand": "echo 'static site - nothing to build'",
   "outputDirectory": "static",
   "cleanUrls": true,
   "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }]
-    }
+    { "source": "/(.*)", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] }
   ]
 }

@@ -4,6 +4,11 @@
   "buildCommand": "echo static site - nothing to build",
   "outputDirectory": "static",
   "cleanUrls": true,
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{static/**,.git/**,**/*.md,Dockerfile,*.command,backend/build_models.py}"
+    }
+  },
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] }
   ]

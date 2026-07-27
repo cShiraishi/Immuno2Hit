@@ -177,14 +177,18 @@ $('inp').addEventListener('input', refreshCount);
 
 $('demo').onclick = () => { $('inp').value = EXAMPLES.join('\n'); refreshCount(); };
 
-// A static host without an API container configured would fail on every click with a
-// cryptic 404. Say so up front instead.
-const API_READY = API_BASE || ['localhost','127.0.0.1'].includes(location.hostname);
-if (!API_READY) {
-  $('go').disabled = true;
-  $('status').textContent = 'prediction API not configured — set window.IMMUNO2HIT_API in config.js';
-  $('status').style.color = '#a33';
-}
+// Ask the backend whether it exists rather than guessing from the hostname: the same
+// page is served by the local server, by a container, and by Vercel Functions.
+let API_READY = false;
+$('go').disabled = true;
+$('status').textContent = 'checking prediction API…';
+fetch(API_BASE + '/api/health')
+  .then(r => { if (!r.ok) throw new Error('unavailable'); return r.json(); })
+  .then(() => { API_READY = true; $('status').textContent = ''; refreshCount(); })
+  .catch(() => {
+    $('status').textContent = 'prediction API unavailable — the page is live but cannot score';
+    $('status').style.color = '#a33';
+  });
 
 $('go').onclick = async () => {
   const smiles = $('inp').value.trim();

@@ -17,7 +17,7 @@ models/
 ## Plataforma de predição
 
 ```bash
-python app.py          # ou duplo clique em Launch_Immuno2Hit.command
+cd backend && python app.py    # ou duplo clique em Launch_Immuno2Hit.command
 ```
 
 Abre `http://127.0.0.1:8765`: cola SMILES (até 100 por rodada), devolve estrutura,
@@ -112,7 +112,7 @@ df = screen(ido1, smiles_list, vote="mean")   # gate P >= 0.6
 Ou pela linha de comando:
 
 ```bash
-python predict.py models/IDO1/*.pkl --smiles biblioteca.csv --out scored.csv
+cd backend && python predict.py models/IDO1/*.pkl --smiles biblioteca.csv --out scored.csv
 ```
 
 SMILES que o RDKit não consegue parsear voltam como `NaN`/`<NA>`, nunca como negativo.
@@ -134,12 +134,14 @@ Cada arquivo é um `dict`:
 
 ## Arquivos de apoio
 
-- `app.py` + `static/index.html` — a plataforma web local (servidor da stdlib, sem Streamlit).
+- `backend/app.py` + `static/index.html` — a plataforma web local (servidor da stdlib, sem Streamlit).
+  O Python fica todo em `backend/` porque o Vercel detecta projeto Python pela presença de
+  `requirements.txt` na raiz e de nomes como `app.py`; com a raiz limpa, ele só publica o site estático.
 - `Launch_Immuno2Hit.command` — launcher de duplo clique.
-- `build_models.py` — reconstrói tudo do zero (idempotente).
-- `fingerprints.py` — geração de MACCS / Morgan / RDKit, idêntica ao ScreenSAR.
-- `qsar_ad.py` — cópia autônoma da classe de domínio de aplicabilidade.
-- `predict.py` — carregar, pontuar e aplicar o consenso.
+- `backend/build_models.py` — reconstrói tudo do zero (idempotente).
+- `backend/fingerprints.py` — geração de MACCS / Morgan / RDKit, idêntica ao ScreenSAR.
+- `backend/qsar_ad.py` — cópia autônoma da classe de domínio de aplicabilidade.
+- `backend/predict.py` — carregar, pontuar e aplicar o consenso.
 
 ## Modelos que ficaram de fora, de propósito
 

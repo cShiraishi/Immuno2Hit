@@ -25,6 +25,10 @@ warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+# the frontend lives at the repository root so that Vercel, which only deploys the
+# static site, never sees this directory's requirements.txt and tries to build Python
+STATIC = HERE / "static" if (HERE / "static").is_dir() else HERE.parent / "static"
+
 from fingerprints import featurize_one  # noqa: E402
 from predict import _ad_predict, load  # noqa: E402
 
@@ -180,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            self._send(200, (HERE / "static" / "index.html").read_bytes(), "text/html; charset=utf-8")
+            self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/targets":
             meta = {t: {"models": [m["model_key"] for m in MODELS[t]],
                         "rule": c["rule_label"], "note": c["note"], "original": c["original"]}

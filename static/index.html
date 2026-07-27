@@ -35,7 +35,8 @@
   .brief .refs{font-size:12px;color:var(--muted);margin:0}
   .brief .refs a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
   .brief .refs a:hover{color:var(--accent);border-color:currentColor}
-  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 10px}
+  .caveat{border-left:2px solid var(--line);padding-left:11px;margin:0 0 22px}
   textarea{width:100%;min-height:110px;padding:12px 14px;border:1px solid var(--line);
     border-radius:10px;background:var(--panel);color:var(--ink);resize:vertical;
     font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -86,6 +87,9 @@
   <h1>Immuno2Hit <span class="tag" id="tabs"></span></h1>
   <p class="sub">Screening across the three arms of immune regulation — innate, adaptive and tolerance.
      One SMILES per line, up to 100 per run. Each target applies the consensus rule defined in its own paper.</p>
+  <p class="sub caveat">This is the <strong>first gate</strong> of each paper's funnel, not a verdict. Clearing it means a
+     compound is worth carrying forward to the applicability-domain, structural-alert, diversity and
+     ADMET filters — which is where most survivors are eliminated.</p>
   <div id="brief" class="brief" hidden></div>
 
   <textarea id="inp" spellcheck="false" placeholder="COc1ccc(cc1NS(=O)(=O)c1cc(Cl)cc(Cl)c1O)-c1ccccc1"></textarea>
@@ -220,8 +224,8 @@ function render(results){
 }
 
 function tgt(name, v){
-  const pill = v.active ? '<span class="pill yes">predicted active</span>'
-                        : '<span class="pill no">predicted inactive</span>';
+  const pill = v.active ? '<span class="pill yes">clears the consensus gate</span>'
+                        : '<span class="pill no">filtered out</span>';
   const retrain = v.original ? '' : '<span class="pill retrain">retrained</span>';
   // only render the columns this target actually uses — TREM2 has Youden cut-offs and no
   // stored AD; CD28/IDO1 are the other way round. Showing both fills the table with dashes.
@@ -247,6 +251,7 @@ function tgt(name, v){
     <div class="detail">${esc(v.detail)} · ${esc(v.rule_label)}</div>
     <div class="tscroll"><table><colgroup>${widths}</colgroup>
     <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="note"><strong>Base rate:</strong> ${esc(v.base_rate)}</div>
     <div class="note">${esc(v.note)}</div>
   </div>`;
 }

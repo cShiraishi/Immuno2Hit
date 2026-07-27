@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import pickle
 import sys
 import threading
 import warnings
@@ -30,7 +31,23 @@ sys.path.insert(0, str(HERE))
 STATIC = HERE / "static" if (HERE / "static").is_dir() else HERE.parent / "static"
 
 from fingerprints import featurize_one  # noqa: E402
-from predict import _ad_predict, load  # noqa: E402
+
+# Deliberately NOT importing from predict.py: that module pulls in pandas for its
+# DataFrame output, and pandas is 39.8 MB installed on Linux. The API only needs
+# pickle and numpy, and the 40 MB matters against a serverless bundle limit.
+
+
+def load(path) -> dict:
+    """Load a packaged model .pkl."""
+    with open(path, "rb") as fh:
+        return pickle.load(fh)
+
+
+def _ad_predict(ad: dict, X):
+    """Mean Tanimoto distance to the k nearest training neighbours, and the AD verdict."""
+    distances, _ = ad["nn"].kneighbors(X, n_neighbors=ad["k_neighbors"])
+    mean_dists = distances.mean(axis=1)
+    return mean_dists <= ad["threshold_AD"], mean_dists
 
 # Each target: the models, the consensus rule, and how much to trust it.
 TARGETS = {
@@ -39,6 +56,7 @@ TARGETS = {
         "rule": "majority",
         "rule_label": "majority vote — 2 of 3 members above their own Youden threshold",
         "note": "Original models from the paper.",
+        "base_rate": "18.1% of a 66,560-compound Enamine library clears this gate; the paper applies five further filters to reach 70 hits.",
         "original": True,
     },
     "CD28": {
@@ -46,6 +64,7 @@ TARGETS = {
         "rule": "mean",
         "rule_label": "mean probability ≥ 0.60, inside the applicability domain",
         "note": "Original models from the paper, trained on the REINVENT4-augmented set.",
+        "base_rate": "3.7% of 8,960 compounds clear this gate; 14 survived the full funnel.",
         "original": True,
     },
     "IDO1": {
@@ -55,6 +74,7 @@ TARGETS = {
         "note": "Baseline consensus, RETRAINED — the original models were never saved. "
                 "Regimes A and C exist in the paper to show that augmentation inflates the "
                 "metric, so they are deliberately left out of a prediction platform.",
+        "base_rate": "0.2% of 4,800 compounds clear this gate; 49 formed the consensus core.",
         "original": False,
     },
 }
@@ -143,6 +163,7 @@ def score_target(target: str, smiles: str) -> dict:
         "inside_ad": inside_all,
         "rule_label": cfg["rule_label"],
         "note": cfg["note"],
+        "base_rate": cfg["base_rate"],
         "original": cfg["original"],
     }
 

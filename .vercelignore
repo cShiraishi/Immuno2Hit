@@ -1,7 +1,7 @@
-# Vercel deploys ONLY the static frontend. Everything Python lives in backend/, which is
-# hidden here as a second line of defence: with no requirements.txt and no entrypoint
-# filename at the root, Vercel's Python runtime detection cannot fire at all.
-backend/
+# backend/ must NOT be ignored: api/predict.py imports backend/core.py and loads the
+# models from backend/models. Only things no deployment path needs are excluded here.
 Dockerfile
 *.command
 README.md
+backend/build_models.py
+backend/predict.py
